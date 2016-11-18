@@ -1421,8 +1421,17 @@ fun unsatisfiableEquality (t1, t2) =
   end
 (* constraint solving ((prototype)) 514a *)
 fun solve c = case c of 
-  type1 ~ type2 => raise LeftAsExercise ""
-
+  type1 ~ type2 => case type1 ~ type2 of
+          TYVAR(x) ~ type2 => raise LeftAsExercise ""
+          | type1 ~ TYVAR(y) => raise LeftAsExercise ""
+          | TYVAR(x) ~ TYVAR(y) => raise LeftAsExercise ""
+          | TYCON(x) ~ TYCON(y) => raise LeftAsExercise ""
+          | TYCON(x) ~ _ => raise LeftAsExercise ""
+          | _ ~ TYCON(y) => raise LeftAsExercise ""
+          | CONAPP(x, xs) ~ CONAPP(y, ys) => raise LeftAsExercise ""
+          | _ ~ CONAPP(y, ys) => raise LeftAsExercise ""
+          | CONAPP(x, xs) ~ _ => raise LeftAsExercise ""
+          
   | con1 /\ con2 => let 
             val theta1 = solve con1
             val theta2 = solve ((consubst theta1) con2)
