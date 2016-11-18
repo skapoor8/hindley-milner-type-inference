@@ -1420,7 +1420,16 @@ fun unsatisfiableEquality (t1, t2) =
          | _ => let exception ThisCan'tHappen in raise ThisCan'tHappen end
   end
 (* constraint solving ((prototype)) 514a *)
-fun solve c = raise LeftAsExercise "solve"
+fun solve c = case c of 
+  type1 ~ type2 => raise LeftAsExercise ""
+
+  | con1 /\ con2 => let 
+            val theta1 = solve con1
+            val theta2 = solve ((consubst theta1) con2)
+          in compose(theta1, theta2)
+          end
+  | TRIVIAL => idsubst
+
 (* type declarations for consistency checking *)
 val _ = op solve : con -> subst
 (* exhaustiveness analysis for {\uml} 1297d *)
