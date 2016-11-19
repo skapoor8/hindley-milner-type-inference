@@ -1422,22 +1422,34 @@ fun unsatisfiableEquality (t1, t2) =
 (* constraint solving ((prototype)) 514a *)
 fun solve c = case c of 
   type1 ~ type2 => case type1 ~ type2 of
-          TYVAR(x) ~ type2 => raise LeftAsExercise ""
-          | type1 ~ TYVAR(y) => raise LeftAsExercise ""
-          | TYVAR(x) ~ TYVAR(y) => raise LeftAsExercise ""
-          | TYCON(x) ~ TYCON(y) => raise LeftAsExercise ""
-          | TYCON(x) ~ _ => raise LeftAsExercise ""
-          | _ ~ TYCON(y) => raise LeftAsExercise ""
-          | CONAPP(x, xs) ~ CONAPP(y, ys) => raise LeftAsExercise ""
-          | _ ~ CONAPP(y, ys) => raise LeftAsExercise ""
-          | CONAPP(x, xs) ~ _ => raise LeftAsExercise ""
-          
+          TYVAR(x) ~ type2 => let
+            val ftvs_of_type2 = freetyvars type2
+          in
+            if not (member x ftvs_of_type2)
+            then (x, type2) :: idsubst
+            else if eqType(type2, TYVAR(x))
+              then idsubst
+              else unsatisfiableEquality(type1, type2)
+          end
+          | type1 ~ TYVAR(y) => solve (type2 ~ type1)
+          | TYVAR(x) ~ TYVAR(y) => (y, TYVAR(x)) :: idsubst
+          | TYCON(x) ~ TYCON(y) => if eqTycon(type1, type2)
+              then idsubst
+              else unsatisfiableEquality(type1, type2)
+          | CONAPP(x, xs) ~ CONAPP(y, ys) => let
+            fun sub_param(t1, t2, subst_acc) = solve(t1 ~ t2) @ subst_acc
+            val param_substs = ListPair.foldrEq sub_param idsubst (xs, ys)
+          in
+            solve(x ~ y) @ param_substs
+          end
+          | _ ~ _ => unsatisfiableEquality(type1, type2)
   | con1 /\ con2 => let 
             val theta1 = solve con1
             val theta2 = solve ((consubst theta1) con2)
           in compose(theta1, theta2)
           end
   | TRIVIAL => idsubst
+  | _ => raise TypeError "ill-typed expression"
 
 (* type declarations for consistency checking *)
 val _ = op solve : con -> subst
