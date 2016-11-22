@@ -1460,10 +1460,24 @@ fun typeof (e, Gamma) =
             end
 
 (* function [[literal]], to infer the type of a literal constant ((prototype)) 515b *)
-      fun literal _ = raise LeftAsExercise "literal"
+      fun literal (NIL) = (listtype alpha, TRIVIAL)
+        | literal (BOOLV(q)) = (booltype, TRIVIAL)
+        | literal (NUM(n)) = (inttype, TRIVIAL)
+        | literal (SYM(s)) = (symtype, TRIVIAL)
+        | literal (PAIR(head, PAIR(head', tail'))) = let
+                  val (tau, c) = literal head
+                  val (tau', c') = literal head'
+                in
+                  (fst (literal(PAIR(head', tail'))), 
+                  (snd (literal(PAIR(head', tail')))) /\ tau ~ tau' /\ c /\ c')
+                end
+        | literal (PAIR(head, NIL)) = (listtype (fst (literal head)), 
+                                      (snd (literal head)) /\ TRIVIAL)
+        | literal _ = raise BugInTypeInference ("Attempted to infer type of" ^ 
+                            " primitive or closure")
 
 (* function [[ty]], to infer the type of a \nml\ expression, given [[Gamma]] 515a *)
-      fun ty (LITERAL n) = literal n
+      fun ty (LITERAL n) = literal n 
         | ty (VAR x) = (freshInstance (findtyscheme (x, Gamma)), TRIVIAL)
         (* more alternatives for [[ty]] 515c *)
         | ty (APPLY (f, actuals)) = 
