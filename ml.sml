@@ -1481,28 +1481,27 @@ fun typeof (e, Gamma) =
             ty (LETX (LET, [b], LETX (LETSTAR, bs, body)))
         (* more alternatives for [[ty]] ((prototype)) 515e *)
         | ty (IFX (e1, e2, e3))        = let
-          val (taus, cons) = typesof(e1::e2::e3::[], Gamma)
-          val (tau1, tau2, tau3) = (List.nth(taus, 1), List.nth(taus, 2), 
-                                    List.nth(taus, 3))
-        in
-          (tau2, cons /\ tau1 ~ booltype /\ tau2 ~ tau3)
-        end
-        | ty (BEGIN es)                = let
-          val (taus, cons) = typesof(es, Gamma)
-        in
-          (List.last(taus), cons)
-        end
+                  val (taus, cons) = typesof(e1::e2::e3::[], Gamma)
+                  val (tau1, tau2, tau3) = (List.nth(taus, 1), List.nth(taus, 2), 
+                                            List.nth(taus, 3))
+                in
+                  (tau2, cons /\ tau1 ~ booltype /\ tau2 ~ tau3)
+                end
+        | ty (BEGIN (e :: es))                = let
+                  val (taus, cons) = typesof((e :: es), Gamma)
+                in
+                  (List.last(taus), cons)
+                end
+        | ty (BEGIN [])                = (unittype, TRIVIAL)
         | ty (LAMBDA (formals, body))  = let
-          val alpha = freshtyvar () 
-          val theta = solve(TRIVIAL)
-          val Gamma' = List.foldr (fn (f, acc) =>
-                                  (bindtyscheme(f, FORALL([], alpha), acc))) 
-                                  Gamma formals
-          val (tau, cons) = typeof(body, Gamma')
-          (* arg types - whats a function represented as? *)
-        in
-          ((f_taus, tau), cons)
-        end
+                  val f_taus = map (fn f => (f, freshtyvar ())) formals
+                  val Gamma' = List.foldr (fn (f, acc) =>
+                              (bindtyscheme(fst f, FORALL([], snd f), acc))) 
+                              Gamma f_taus
+                  val (tau, cons) = typeof(body, Gamma')
+                in
+                  (funtype(map snd f_taus, tau), cons) (* TRIVIAL *)
+                end
         | ty (LETX (LET, bs, body))    = raise LeftAsExercise "type for LET"
         | ty (LETX (LETREC, bs, body)) = raise LeftAsExercise "type for LETREC"
 (* type declarations for consistency checking *)
