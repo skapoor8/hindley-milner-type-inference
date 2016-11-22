@@ -1502,7 +1502,17 @@ fun typeof (e, Gamma) =
                 in
                   (funtype(map snd f_taus, tau), cons) (* TRIVIAL *)
                 end
-        | ty (LETX (LET, bs, body))    = raise LeftAsExercise "type for LET"
+        | ty (LETX (LET, bs, body))    = let 
+                  val (e_taus, cons) = typesof(map snd bs, Gamma)
+                  val sigmas = map (fn tau => generalize(tau, freetyvarsGamma 
+                                Gamma)) e_taus
+                  val Gamma' = ListPair.foldrEq (fn (nm, ty_sch, acc) =>
+                              (bindtyscheme(nm, ty_sch, acc))) Gamma 
+                              (map fst bs, sigmas)
+                  val (body_tau, body_con) = typeof(body, Gamma')
+                in
+                  (body_tau, conjoinConstraints(body_con::[cons]))
+                end
         | ty (LETX (LETREC, bs, body)) = raise LeftAsExercise "type for LETREC"
 (* type declarations for consistency checking *)
 val _ = op typeof  : exp      * type_env -> ty      * con
