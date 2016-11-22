@@ -1421,7 +1421,12 @@ fun unsatisfiableEquality (t1, t2) =
   end
 (* constraint solving ((prototype)) 514a *)
 fun solve c = case c of 
-  TYVAR(x) ~ TYCON(y) => x |--> TYCON(y)
+  con1 /\ con2 => let 
+            val theta1 = solve con1
+            val theta2 = solve ((consubst theta1) con2)
+          in compose(theta2, theta1)
+          end
+  | TYVAR(x) ~ TYCON(y) => x |--> TYCON(y)
   | TYVAR(x) ~ CONAPP(y, ys) => x |--> CONAPP(y, ys)
   | TYVAR(x) ~ TYVAR(y) => x |--> TYVAR(y)
   | TYCON(x) ~ TYVAR(y) => y |--> TYCON(x)
@@ -1430,18 +1435,14 @@ fun solve c = case c of
       then idsubst
       else unsatisfiableEquality(TYCON(x), TYCON(y))
   | CONAPP(x, xs) ~ CONAPP(y, ys) => let
-    fun sub_param(t1, t2, subst_acc) = solve(t1 ~ t2) @ subst_acc
-    val param_substs = ListPair.foldrEq sub_param idsubst (xs, ys)
-  in
-    solve(x ~ y) @ param_substs
+            val body_con = x ~ y
+            val cons = ListPair.foldrEq (fn (xi, yi, acc) =>
+                            xi ~ yi /\ acc) body_con (xs, ys)
+          in
+            solve(cons)
   end
   | TYCON(x) ~ CONAPP(y, ys) => unsatisfiableEquality(TYCON(x), CONAPP(y, ys))
   | CONAPP(x, xs) ~ TYCON(y) => unsatisfiableEquality(CONAPP(x, xs), TYCON(y))
-  | con1 /\ con2 => let 
-            val theta1 = solve con1
-            val theta2 = solve ((consubst theta1) con2)
-          in compose(theta1, theta2)
-          end
   | TRIVIAL => idsubst
 
 (* type declarations for consistency checking *)
@@ -1460,19 +1461,18 @@ fun typeof (e, Gamma) =
             end
 
 (* function [[literal]], to infer the type of a literal constant ((prototype)) 515b *)
-      fun literal (NIL) = (listtype alpha, TRIVIAL)
+      fun literal NIL = (listtype alpha, TRIVIAL)
         | literal (BOOLV(q)) = (booltype, TRIVIAL)
         | literal (NUM(n)) = (inttype, TRIVIAL)
         | literal (SYM(s)) = (symtype, TRIVIAL)
-        | literal (PAIR(head, PAIR(head', tail'))) = let
+        | literal (PAIR(head, tail)) = let
                   val (tau, c) = literal head
-                  val (tau', c') = literal head'
+                  val (tau', c') = literal tail
                 in
-                  (fst (literal(PAIR(head', tail'))), 
-                  (snd (literal(PAIR(head', tail')))) /\ tau ~ tau' /\ c /\ c')
+                  (fst (literal tail), 
+                  (snd (literal tail)) /\ listtype tau ~ tau' 
+                  /\ c /\ c')
                 end
-        | literal (PAIR(head, NIL)) = (listtype (fst (literal head)), 
-                                      (snd (literal head)) /\ TRIVIAL)
         | literal _ = raise BugInTypeInference ("Attempted to infer type of" ^ 
                             " primitive or closure")
 
@@ -1496,8 +1496,8 @@ fun typeof (e, Gamma) =
         (* more alternatives for [[ty]] ((prototype)) 515e *)
         | ty (IFX (e1, e2, e3))        = let
                   val (taus, cons) = typesof(e1::e2::e3::[], Gamma)
-                  val (tau1, tau2, tau3) = (List.nth(taus, 1), List.nth(taus, 2), 
-                                            List.nth(taus, 3))
+                  val (tau1, tau2, tau3) = (List.nth(taus, 1), List.nth(taus, 2)
+                                          , List.nth(taus, 3))
                 in
                   (tau2, cons /\ tau1 ~ booltype /\ tau2 ~ tau3)
                 end
@@ -1510,16 +1510,17 @@ fun typeof (e, Gamma) =
         | ty (LAMBDA (formals, body))  = let
                   val f_taus = map (fn f => (f, freshtyvar ())) formals
                   val Gamma' = List.foldr (fn (f, acc) =>
-                              (bindtyscheme(fst f, FORALL([], snd f), acc))) 
-                              Gamma f_taus
+                              (bindtyscheme(fst f, FORALL([], snd f)
+                              , acc))) Gamma f_taus
                   val (tau, cons) = typeof(body, Gamma')
                 in
                   (funtype(map snd f_taus, tau), cons) (* TRIVIAL *)
                 end
         | ty (LETX (LET, bs, body))    = let 
                   val (e_taus, cons) = typesof(map snd bs, Gamma)
-                  val sigmas = map (fn tau => generalize(tau, freetyvarsGamma 
-                                Gamma)) e_taus
+                  val theta = solve cons
+                  val sigmas = map (fn tau => generalize(tysubst theta tau,      
+                                freetyvarsGamma Gamma)) e_taus
                   val Gamma' = ListPair.foldrEq (fn (nm, ty_sch, acc) =>
                               (bindtyscheme(nm, ty_sch, acc))) Gamma 
                               (map fst bs, sigmas)
@@ -2365,7 +2366,7 @@ val initialBasis =
           , "(define o (f g) (lambda (x) (f (g x))))"
           , "(define curry   (f) (lambda (x) (lambda (y) (f x y))))"
           , "(define uncurry (f) (lambda (x y) ((f x) y)))"
-          , "(define filter (p? xs)"
+          (* , "(define filter (p? xs)"
           , "  (if (null? xs)"
           , "    '()"
           , "    (if (p? (car xs))"
@@ -2400,9 +2401,9 @@ val initialBasis =
           , "(define != (x y) (not (= x y)))"
           , "(define max (x y) (if (> x y) x y))"
           , "(define min (x y) (if (< x y) x y))"
-          , "(define mod (m n) (- m (* n (/ m n))))"
+          , "(define mod (m n) (- m ( * n (/ m n))))"
           , "(define gcd (m n) (if (= n 0) m (gcd n (mod m n))))"
-          , "(define lcm (m n) (* m (/ n (gcd m n))))"
+          , "(define lcm (m n) ( * m (/ n (gcd m n))))"
           , "(define min* (xs) (foldr min (car xs) (cdr xs)))"
           , "(define max* (xs) (foldr max (car xs) (cdr xs)))"
           , "(define gcd* (xs) (foldr gcd (car xs) (cdr xs)))"
@@ -2414,7 +2415,7 @@ val initialBasis =
           , "(define list5 (x y z a b)       (cons x (list4 y z a b)))"
           , "(define list6 (x y z a b c)     (cons x (list5 y z a b c)))"
           , "(define list7 (x y z a b c d)   (cons x (list6 y z a b c d)))"
-          , "(define list8 (x y z a b c d e) (cons x (list7 y z a b c d e)))"
+          , "(define list8 (x y z a b c d e) (cons x (list7 y z a b c d e)))" *)
            ]
       val xdefs = stringsxdefs ("predefined functions", usercode)
   in  readEvalPrintWith predefinedFunctionError (xdefs, primBasis,

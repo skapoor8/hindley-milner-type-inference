@@ -1,0 +1,13 @@
+(define ignore(a) '())
+
+
+
+(val alist (cons (pair 'a #t) '()))
+(val x 'b)
+(val y #f)
+
+(if (null? alist)
+              (list1 (pair x y))
+              (if (= x (fst (car alist)))
+                (cons (pair x y) (cdr alist))
+                (cons (car alist) '())))
