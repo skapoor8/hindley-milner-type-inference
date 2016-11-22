@@ -1496,8 +1496,8 @@ fun typeof (e, Gamma) =
         (* more alternatives for [[ty]] ((prototype)) 515e *)
         | ty (IFX (e1, e2, e3))        = let
                   val (taus, cons) = typesof(e1::e2::e3::[], Gamma)
-                  val (tau1, tau2, tau3) = (List.nth(taus, 1), List.nth(taus, 2)
-                                          , List.nth(taus, 3))
+                  val (tau1, tau2, tau3) = (List.nth(taus, 0), List.nth(taus, 1)
+                                          , List.nth(taus, 2))
                 in
                   (tau2, cons /\ tau1 ~ booltype /\ tau2 ~ tau3)
                 end

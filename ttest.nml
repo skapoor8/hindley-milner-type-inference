@@ -9,5 +9,9 @@
 (if (null? alist)
               (list1 (pair x y))
               (if (= x (fst (car alist)))
-                (cons (pair x y) (cdr alist))
-                (cons (car alist) '())))
+                '()
+                '()))
+
+(if #t
+              '()
+              '())
